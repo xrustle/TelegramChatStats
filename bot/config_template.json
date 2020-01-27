@@ -1,0 +1,19 @@
+{
+    "id": 111111,
+    "token": "bot token",
+    "proxy": {
+        "https": "socks5://login:pass@host:port"
+    },
+    "mtproto": ["host", 443, "secret"],
+    "mongo": {
+        "uri": {
+            "host": "localhost",
+            "port": 27017
+        },
+        "db": "db name"
+    },
+    "api": {
+        "api_id": 2222222,
+        "api_hash": "api token"
+    }
+}
