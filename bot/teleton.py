@@ -1,4 +1,4 @@
-from instabot.config import API, MTPROTO
+from bot.config import API, MTPROTO
 from telethon import TelegramClient, sync, connection
 from telethon.errors import SessionPasswordNeededError
 import logging
