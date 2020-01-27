@@ -1,7 +1,8 @@
 from bot.config import API, MTPROTO
 from telethon import TelegramClient, sync, connection
-from telethon.errors import SessionPasswordNeededError
+import time
 import logging
+from pprint import pprint
 
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.WARNING)
@@ -11,22 +12,25 @@ client = TelegramClient(
     connection=connection.ConnectionTcpMTProxyRandomizedIntermediate,
     proxy=tuple(MTPROTO)
 )
-# client.connect()
-# if not client.is_user_authorized():
-#     phone = input('Phone: ')
-#     try:
-#         client.send_code_request(phone)
-#         me = client.sign_in(phone, input('Code: '))
-#     except SessionPasswordNeededError:
-#         password = input('Password: ')
-#         me = client.start(phone, password)
-#
-# myself = client.get_me()
-# print(myself)
+
 
 async def main():
     # Getting information about yourself
     me = await client.get_me()
+
+    async for dialog in client.iter_dialogs():
+        if dialog.title == 'D+J':
+            async for message in client.iter_messages(dialog):
+                msg = message.to_dict()
+                if 'message' in msg:
+                    print(msg['message'])
+                else:
+                    print('<нет текста>')
+
+                time.sleep(.5)
+            members = await client.get_participants(dialog)
+            for member in members:
+                print(member.first_name, member.last_name)
 
     # "me" is an User object. You can pretty-print
     # any Telegram object with the "stringify" method:
@@ -35,9 +39,9 @@ async def main():
     # When you print something, you see a representation of it.
     # You can access all attributes of Telegram objects with
     # the dot operator. For example, to get the username:
-    username = me.username
-    print(username)
-    print(me.phone)
+    # username = me.username
+    # print(username)
+    # print(me.phone)
 
     # You can print all the dialogs/conversations that you are part of:
     # async for dialog in client.iter_dialogs():
