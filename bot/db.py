@@ -1,5 +1,5 @@
 from pymongo import MongoClient
-from instabot.config import MONGO
+from bot.config import MONGO
 
 
 class MongoDB:
@@ -7,13 +7,16 @@ class MongoDB:
         client = MongoClient(**MONGO['uri'])
         self.db = client.get_database(MONGO['db'])
 
-    def insert(self, record, coll_name='test'):
-        collection = self.db[coll_name]
-        collection.insert_one(record)
+    def insert_message(self, chat_id, item):
+        result = self.db['Chat' + str(chat_id)].update_one({'_id': item['id']},
+                                                           {'$set': item},
+                                                           upsert=True)
+        if result.upserted_id:
+            print('Добавлено сообщение', item['id'], 'в чат', chat_id)
+            return True
+        else:
+            print('Все сообщения чата', chat_id, 'обработаны')
+            return False
 
 
 db = MongoDB()
-
-if __name__ == "__main__":
-    item = {"test": "test"}
-    db.insert(item)
