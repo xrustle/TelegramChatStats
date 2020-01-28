@@ -1,5 +1,6 @@
 import bot.config as config
 from bot.db import db
+from bot.teleton import collect_messages
 import telebot
 
 
@@ -21,5 +22,6 @@ def print_message(m: telebot.types.Message):
 
 
 if __name__ == "__main__":
+    collect_messages()
     my_id = config.ID
     bot.polling()
