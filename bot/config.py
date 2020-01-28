@@ -9,3 +9,6 @@ ID = conf['id']
 MONGO = conf['mongo']
 API = conf['api']
 MTPROTO = conf['mtproto']
+
+chats_dict = conf['chats']
+CHATS = [chats_dict[i] for i in chats_dict]
