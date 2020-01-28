@@ -15,5 +15,9 @@
     "api": {
         "api_id": 2222222,
         "api_hash": "api token"
+    },
+    "chats": {
+        "chat_title1": 12345,
+        "chat_title2": 123456
     }
 }
