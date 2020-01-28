@@ -6,6 +6,12 @@ from bot.db import db
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.WARNING)
 
+client = TelegramClient(
+            'session-telegram',
+            **API,
+            connection=connection.ConnectionTcpMTProxyRandomizedIntermediate,
+            proxy=tuple(MTPROTO))
+
 
 def collect_messages():
     """
@@ -18,11 +24,17 @@ def collect_messages():
                 async for message in client.iter_messages(dialog):
                     if not db.insert_message(dialog.id, message.to_dict()):
                         break
-
-    with TelegramClient(
-            'session-telegram',
-            **API,
-            connection=connection.ConnectionTcpMTProxyRandomizedIntermediate,
-            proxy=tuple(MTPROTO)
-    ) as client:
+    with client:
         client.loop.run_until_complete(run())
+
+
+def show_dialogs():
+    async def run():
+        async for dialog in client.iter_dialogs():
+            print('{:<15} {}'.format(dialog.id, dialog.name))
+    with client:
+        client.loop.run_until_complete(run())
+
+
+if __name__ == '__main__':
+    show_dialogs()
