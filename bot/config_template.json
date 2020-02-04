@@ -1,6 +1,7 @@
 {
     "id": 111111,
     "token": "bot token",
+    "proxy_on": true,
     "proxy": {
         "https": "socks5://login:pass@host:port"
     },

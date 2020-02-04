@@ -20,13 +20,20 @@ def collect_messages():
     async def run():
         async for dialog in client.iter_dialogs():
             if dialog.id in CHATS:
-                print('Собираем данные диалога', dialog.name)
+                print('Собираем данные диалога: ', dialog.name)
+                number_of_new_messages = 0
+                number_of_new_members = 0
                 async for message in client.iter_messages(dialog):
                     if not db.insert_message(dialog.id, message.to_dict()):
                         break
+                    else:
+                        number_of_new_messages += 1
                 members = await client.get_participants(dialog)
                 for member in members:
-                    db.insert_message(dialog.id, member.to_dict(), 'Members')
+                    if db.insert_message(dialog.id, member.to_dict(), 'Members') is not None:
+                        number_of_new_members += 1
+                print(f'\tНовых сообщений собрано: {number_of_new_messages}')
+                print(f'\tНовых участников добавлено: {number_of_new_members}')
     with client:
         client.loop.run_until_complete(run())
 

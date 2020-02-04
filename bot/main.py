@@ -3,8 +3,9 @@ from bot.db import db
 from bot.teleton import collect_messages
 import telebot
 
+if config.PROXY_ON:
+    telebot.apihelper.proxy = config.PROXY
 
-telebot.apihelper.proxy = config.PROXY
 bot = telebot.TeleBot(config.TOKEN)
 
 
@@ -22,6 +23,8 @@ def print_message(m: telebot.types.Message):
 
 
 if __name__ == "__main__":
-    collect_messages()
+    collect_messages()  # Собираем историю сообщений
+    db.handle_new_messages()  # Обрабатываем собранные сообщения
     my_id = config.ID
-    # bot.polling()
+    print('Запуск бота...')
+    # bot.polling()  # Запускаем бота статиста
