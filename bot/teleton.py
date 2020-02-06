@@ -24,13 +24,13 @@ def collect_messages():
                 number_of_new_messages = 0
                 number_of_new_members = 0
                 async for message in client.iter_messages(dialog):
-                    if not db.insert_message(dialog.id, message.to_dict()):
+                    if not db.insert_message(dialog.id, {'raw': message.to_dict()}):
                         break
                     else:
                         number_of_new_messages += 1
                 members = await client.get_participants(dialog)
                 for member in members:
-                    if db.insert_message(dialog.id, member.to_dict(), 'Members') is not None:
+                    if db.insert_member(dialog.id, member.to_dict(), 'Members') is not None:
                         number_of_new_members += 1
                 print(f'\tНовых сообщений собрано: {number_of_new_messages}')
                 print(f'\tНовых участников добавлено: {number_of_new_members}')
