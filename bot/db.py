@@ -3,12 +3,14 @@ from bot.config import MONGO
 import emoji
 import regex
 import re
+from rnnmorph.predictor import RNNMorphPredictor
 
 
 def handle_message(msg):
     data = {'handled': True}
     text = msg['raw'].get('message')
     if text:  # Обработка текста сообщения
+
         # Handling emoji
         words = regex.findall(r'\X', text)
         for word in words:
@@ -16,14 +18,25 @@ def handle_message(msg):
                 if 'emoticons' not in data:
                     data['emoticons'] = []
                 data['emoticons'].append(word)
+
         # Handling russian words
         sentences = []
         for sentence in re.split(r'[.!?]+', text):
-            word_list = re.findall(r'[а-яА-Я]+', sentence)
+            word_list = re.findall(r'[а-яА-Я]', sentence)
             if word_list:
                 sentences.append(word_list)
         if sentences:
             data['sentences'] = sentences
+            pr_sentences = pr.predict_sentences(sentences=sentences)
+            data['words'] = []
+            for pr_sentence in pr_sentences:
+                for pr_word in pr_sentence:
+                    pr_handled_word = {'word': pr_word.word,
+                                       'normal_form': pr_word.normal_form,
+                                       'pos': pr_word.pos,
+                                       'tag': pr_word.tag}
+                    data['words'].append(pr_handled_word)
+
     return data
 
 
@@ -54,13 +67,71 @@ class MongoDB:
                     self.db[collection_name].update_one({'_id': message['raw']['id']},
                                                         {'$set': handled_data})
 
+    def most_commonly_used_words(self, chat_id):
+        all_words = self.db['Chat' + str(chat_id)].aggregate([
+            {  # Фильтруем по частям речи слова в массиве
+                '$project': {
+                    '_id': 0,
+                    # 'words': {
+                    #     '$filter': {
+                    #         'input': '$words',
+                    #         'as': 'word',
+                    #         'cond': {'$in': ['$$word.pos', ['NOUN']]}
+                    #     }
+                    # }
+                    'words': '$words'
+                }
+            },
+            {  # Разворачиваем массив слов в отдельные записи
+                '$unwind': '$words'
+            },
+            {
+                '$match': {
+                    'words': {
+                        '$exists': True,
+                        '$nin': [[], None]
+                    }
+                }
+            },
+            {  # Выносим поля
+                '$addFields': {
+                    'word': '$words.normal_form',
+                    'pos': '$words.pos'
+                }
+            },
+            {  # Удаляем массив
+                '$unset': 'words'
+            },
+            {  # Группируем по словам и частям речи
+                '$group': {
+                    '_id': {
+                        'word': '$word',
+                        'pos': '$pos'
+                    },
+                    'count': {'$sum': 1}
+                }
+            },
+            {  # Добавляем поля из _id
+                '$addFields': {
+                    'word': '$_id.word',
+                    'pos': '$_id.pos'
+                }
+            },
+            {  # Удаляем _id
+                '$unset': '_id'
+            },
+            {  # Сортируем. Сверху будут наибольшие значения
+                '$sort': {'count': -1}
+            },
+        ])
+        for word in all_words:
+            print(word)
+
 
 db = MongoDB()
+pr = RNNMorphPredictor()
 
 if __name__ == '__main__':
-    chat = 'Chat-397977949'  # J + D
-    new_messages = db.db[chat].find()
-    for message in new_messages:
-        handled_data = handle_message(message)
-        db.db[chat].update_one({'_id': message['id']},
-                               {'$set': handled_data})
+    # chat = '-397977949'  # J + D
+    chat = '-396450692'  # work chat
+    db.most_commonly_used_words(chat)
