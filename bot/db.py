@@ -22,7 +22,7 @@ def handle_message(msg):
         # Handling russian words
         sentences = []
         for sentence in re.split(r'[.!?]+', text):
-            word_list = re.findall(r'[а-яА-Я]', sentence)
+            word_list = re.findall(r'[а-яА-Я]+', sentence)
             if word_list:
                 sentences.append(word_list)
         if sentences:
@@ -67,21 +67,33 @@ class MongoDB:
                     self.db[collection_name].update_one({'_id': message['raw']['id']},
                                                         {'$set': handled_data})
 
-    def most_commonly_used_words(self, chat_id):
-        all_words = self.db['Chat' + str(chat_id)].aggregate([
-            {  # Фильтруем по частям речи слова в массиве
+    def most_commonly_used_words(self, chat_id, start=None, end=None, parts_of_speech=None):
+        pipeline = []
+        if start or end:
+            pass
+
+        if parts_of_speech:
+            pipeline.append({  # Фильтруем по частям речи слова в массиве
                 '$project': {
                     '_id': 0,
-                    # 'words': {
-                    #     '$filter': {
-                    #         'input': '$words',
-                    #         'as': 'word',
-                    #         'cond': {'$in': ['$$word.pos', ['NOUN']]}
-                    #     }
-                    # }
+                    'words': {
+                        '$filter': {
+                            'input': '$words',
+                            'as': 'word',
+                            'cond': {'$in': ['$$word.pos', parts_of_speech]}
+                        }
+                    }
+                }
+            })
+        else:
+            pipeline.append({  # Фильтруем по частям речи слова в массиве
+                '$project': {
+                    '_id': 0,
                     'words': '$words'
                 }
-            },
+            })
+
+        pipeline.extend([
             {  # Разворачиваем массив слов в отдельные записи
                 '$unwind': '$words'
             },
@@ -124,6 +136,8 @@ class MongoDB:
                 '$sort': {'count': -1}
             },
         ])
+
+        all_words = self.db['Chat' + str(chat_id)].aggregate(pipeline=pipeline)
         for word in all_words:
             print(word)
 
@@ -132,6 +146,6 @@ db = MongoDB()
 pr = RNNMorphPredictor()
 
 if __name__ == '__main__':
-    # chat = '-397977949'  # J + D
-    chat = '-396450692'  # work chat
-    db.most_commonly_used_words(chat)
+    chat = '-397977949'  # J + D
+    # chat = '-396450692'  # work chat
+    db.most_commonly_used_words(chat, parts_of_speech=['VERB', 'NOUN'])
