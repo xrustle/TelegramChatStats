@@ -3,6 +3,7 @@ from telethon import TelegramClient, connection
 import logging
 from bot.db import db
 
+
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.WARNING)
 
@@ -23,17 +24,26 @@ def collect_messages():
                 print('Собираем данные диалога: ', dialog.name)
                 number_of_new_messages = 0
                 number_of_new_members = 0
-                async for message in client.iter_messages(dialog):
-                    if not db.insert_message(dialog.id, {'raw': message.to_dict()}):
-                        break
-                    else:
-                        number_of_new_messages += 1
+                async for m in client.iter_messages(dialog):
+                    if m.text and not m.sender.bot:
+                        if not db.insert_message(dialog.id, {'_id': m.id,
+                                                             'date': m.date,
+                                                             'message': m.text,
+                                                             'from_id': m.sender_id}):
+                            break
+                        else:
+                            number_of_new_messages += 1
                 members = await client.get_participants(dialog)
+                users = []
                 for member in members:
-                    if db.insert_member(dialog.id, member.to_dict(), 'Members') is not None:
-                        number_of_new_members += 1
+                    if not member.bot:
+                        user = {'id': member.id,
+                                'first_name': member.first_name,
+                                'last_name': member.last_name,
+                                'username': member.username}
+                        users.append(user)
+                db.insert_members(dialog.id, {'title': dialog.name, 'users': users})
                 print(f'\tНовых сообщений собрано: {number_of_new_messages}')
-                print(f'\tНовых участников добавлено: {number_of_new_members}')
     with client:
         client.loop.run_until_complete(run())
 
@@ -47,4 +57,6 @@ def show_dialogs():
 
 
 if __name__ == '__main__':
-    show_dialogs()
+    collect_messages()  # Собираем историю сообщений
+    db.handle_new_messages()  # Обрабатываем собранные сообщения
+    # show_dialogs()

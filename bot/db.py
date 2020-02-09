@@ -8,7 +8,7 @@ from rnnmorph.predictor import RNNMorphPredictor
 
 def handle_message(msg):
     data = {'handled': True}
-    text = msg['raw'].get('message')
+    text = msg.get('message')
     if text:  # Обработка текста сообщения
 
         # Handling emoji
@@ -46,113 +46,27 @@ class MongoDB:
         self.db = client.get_database(MONGO['db'])
 
     def insert_message(self, chat_id, msg, collection='Chat'):
-        result = self.db[collection + str(chat_id)].update_one({'_id': msg['raw']['id']},
+        result = self.db[collection + str(chat_id)].update_one({'_id': msg['_id']},
                                                                {'$set': msg},
                                                                upsert=True)
         return result.upserted_id
 
-    def insert_member(self, chat_id, member, collection='Chat'):
-        result = self.db[collection + str(chat_id)].update_one({'_id': member['id']},
-                                                               {'$set': member},
-                                                               upsert=True)
+    def insert_members(self, chat, members):
+        result = self.db['Members'].update_one({'_id': chat},
+                                               {'$set': members},
+                                               upsert=True)
         return result.upserted_id
 
     def handle_new_messages(self):
         for collection_name in self.db.collection_names():
             if collection_name.startswith('Chat'):
                 print('Обрабатываем сообщения чата', collection_name)
-                new_messages = self.db[collection_name].find({})  # {'handled': {"$exists": False}})
+                new_messages = self.db[collection_name].find({'handled': {"$exists": False}})  # {'handled': {"$exists": False}})
                 for message in new_messages:
                     handled_data = handle_message(message)
-                    self.db[collection_name].update_one({'_id': message['raw']['id']},
+                    self.db[collection_name].update_one({'_id': message['_id']},
                                                         {'$set': handled_data})
-
-    def most_commonly_used_words(self, chat_id, start=None, end=None, parts_of_speech=None):
-        pipeline = []
-        if start or end:
-            pass
-
-        if parts_of_speech:
-            pipeline.append({  # Фильтруем по частям речи слова в массиве
-                '$project': {
-                    '_id': 0,
-                    'words': {
-                        '$filter': {
-                            'input': '$words',
-                            'as': 'word',
-                            'cond': {'$in': ['$$word.pos', parts_of_speech]}
-                        }
-                    },
-                    'date': '$raw.date',
-                    'from_id': '$raw.from_date'
-                }
-            })
-        else:
-            pipeline.append({  # Фильтруем по частям речи слова в массиве
-                '$project': {
-                    '_id': 0,
-                    'words': '$words',
-                    'date': '$raw.date',
-                    'from_id': '$raw.from_id'
-                }
-            })
-
-        pipeline.extend([
-            {  # Разворачиваем массив слов в отдельные записи
-                '$unwind': '$words'
-            },
-            {  # Убрать пустые
-                '$match': {
-                    'words': {
-                        '$exists': True,
-                        '$nin': [[], None]
-                    }
-                }
-            },
-            {  # Выносим поля
-                '$addFields': {
-                    'word': '$words.normal_form',
-                    'pos': '$words.pos'
-                }
-            },
-            {  # Удаляем массив
-                '$unset': 'words'
-            },
-            {  # VOID
-                '$unset': 'void pipeline'
-            },
-            {  # Группируем по словам и частям речи
-                '$group': {
-                    '_id': {
-                        'word': '$word',
-                        'pos': '$pos'
-                    },
-                    'count': {'$sum': 1}
-                }
-            },
-            {  # Добавляем поля из _id
-                '$addFields': {
-                    'word': '$_id.word',
-                    'pos': '$_id.pos'
-                }
-            },
-            {  # Удаляем _id
-                '$unset': '_id'
-            },
-            {  # Сортируем. Сверху будут наибольшие значения
-                '$sort': {'count': -1}
-            }
-        ])
-
-        all_words = self.db['Chat' + str(chat_id)].aggregate(pipeline=pipeline)
-        for word in all_words:
-            print(word)
 
 
 db = MongoDB()
 pr = RNNMorphPredictor()
-
-if __name__ == '__main__':
-    chat = '-397977949'  # J + D
-    # chat = '-396450692'  # work chat
-    db.most_commonly_used_words(chat)
