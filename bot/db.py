@@ -22,7 +22,7 @@ def handle_message(msg):
         # Handling russian words
         sentences = []
         for sentence in re.split(r'[.!?]+', text):
-            word_list = re.findall(r'[а-яА-Я]+', sentence)
+            word_list = re.findall(r'[а-яА-Я]+-[а-яА-Я]+|[а-яА-Я]+', sentence)
             if word_list:
                 sentences.append(word_list)
         if sentences:
@@ -82,14 +82,18 @@ class MongoDB:
                             'as': 'word',
                             'cond': {'$in': ['$$word.pos', parts_of_speech]}
                         }
-                    }
+                    },
+                    'date': '$raw.date',
+                    'from_id': '$raw.from_date'
                 }
             })
         else:
             pipeline.append({  # Фильтруем по частям речи слова в массиве
                 '$project': {
                     '_id': 0,
-                    'words': '$words'
+                    'words': '$words',
+                    'date': '$raw.date',
+                    'from_id': '$raw.from_id'
                 }
             })
 
@@ -97,7 +101,7 @@ class MongoDB:
             {  # Разворачиваем массив слов в отдельные записи
                 '$unwind': '$words'
             },
-            {
+            {  # Убрать пустые
                 '$match': {
                     'words': {
                         '$exists': True,
@@ -113,6 +117,9 @@ class MongoDB:
             },
             {  # Удаляем массив
                 '$unset': 'words'
+            },
+            {  # VOID
+                '$unset': 'void pipeline'
             },
             {  # Группируем по словам и частям речи
                 '$group': {
@@ -134,7 +141,7 @@ class MongoDB:
             },
             {  # Сортируем. Сверху будут наибольшие значения
                 '$sort': {'count': -1}
-            },
+            }
         ])
 
         all_words = self.db['Chat' + str(chat_id)].aggregate(pipeline=pipeline)
@@ -148,4 +155,4 @@ pr = RNNMorphPredictor()
 if __name__ == '__main__':
     chat = '-397977949'  # J + D
     # chat = '-396450692'  # work chat
-    db.most_commonly_used_words(chat, parts_of_speech=['VERB', 'NOUN'])
+    db.most_commonly_used_words(chat)
