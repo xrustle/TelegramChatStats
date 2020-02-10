@@ -1,5 +1,6 @@
 from pymongo import MongoClient
-from bot.config import MONGO, CHATS
+from bot.config import MONGO
+from datetime import datetime
 
 
 class MongoDB:
@@ -26,36 +27,32 @@ class MongoDB:
         return users
 
     def most_commonly_used_words(self, chat_id, start=None, end=None, parts_of_speech=None):
-        pipeline = []
-        if start or end:
-            pass
+        date_filter = {'$ne': datetime.strptime('01/01/70', '%d/%m/%y')}
+        if start:
+            date_filter['$gte'] = datetime.strptime(start, '%d/%m/%y')
+        if end:
+            date_filter['$lte'] = datetime.strptime(end, '%d/%m/%y')
 
         if parts_of_speech:
-            pipeline.append({  # Фильтруем по частям речи слова в массиве
-                '$project': {
-                    '_id': 0,
-                    'words': {
-                        '$filter': {
-                            'input': '$words',
-                            'as': 'word',
-                            'cond': {'$in': ['$$word.pos', parts_of_speech]}
-                        }
-                    },
-                    'date': '$date',
-                    'from_id': '$from_date'
+            pos_filter = {
+                '$filter': {
+                    'input': '$words',
+                    'as': 'word',
+                    'cond': {'$in': ['$$word.pos', parts_of_speech]}
                 }
-            })
+            }
         else:
-            pipeline.append({  # Фильтруем по частям речи слова в массиве
+            pos_filter = '$words'
+
+        all_words = self.db['Chat' + str(chat_id)].aggregate(pipeline=[
+            {  # Фильтруем по частям речи слова в массиве
                 '$project': {
                     '_id': 0,
-                    'words': '$words',
+                    'words': pos_filter,
                     'date': '$date',
                     'from_id': '$from_id'
                 }
-            })
-
-        pipeline.extend([
+            },
             {  # Разворачиваем массив слов в отдельные записи
                 '$unwind': '$words'
             },
@@ -64,7 +61,8 @@ class MongoDB:
                     'words': {
                         '$exists': True,
                         '$nin': [[], None]
-                    }
+                    },
+                    'date': date_filter
                 }
             },
             {  # Выносим поля
@@ -102,7 +100,6 @@ class MongoDB:
             }
         ])
 
-        all_words = self.db['Chat' + str(chat_id)].aggregate(pipeline=pipeline)
         for word in all_words:
             print(word)
 
@@ -112,5 +109,5 @@ db = MongoDB()
 if __name__ == '__main__':
     # chat = '-397977949'  # J + D
     chat = '-396450692'  # work chat
-    db.most_commonly_used_words(chat, parts_of_speech=['NOUN'])
+    db.most_commonly_used_words(chat)
     # print(db.full_user_list())
