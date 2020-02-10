@@ -21,8 +21,8 @@ def handle_message(msg):
 
         # Handling russian words
         sentences = []
-        for sentence in re.split(r'[.!?]+', text):
-            word_list = re.findall(r'[а-яА-Я]+-[а-яА-Я]+|[а-яА-Я]+', sentence)
+        for sentence in re.split(r'[.!?]+', re.sub(r'[ёЁ]', 'е', text)):
+            word_list = re.findall(r'[а-яА-ЯёЁ]+-[а-яА-ЯёЁ]+|[а-яА-ЯёЁ]+', sentence)
             if word_list:
                 sentences.append(word_list)
         if sentences:

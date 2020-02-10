@@ -111,6 +111,6 @@ db = MongoDB()
 
 if __name__ == '__main__':
     # chat = '-397977949'  # J + D
-    # chat = '-396450692'  # work chat
-    # db.most_commonly_used_words(chat)
-    print(db.full_user_list())
+    chat = '-396450692'  # work chat
+    db.most_commonly_used_words(chat, parts_of_speech=['NOUN'])
+    # print(db.full_user_list())
