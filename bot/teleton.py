@@ -25,7 +25,7 @@ def collect_messages():
                 number_of_new_messages = 0
                 number_of_new_members = 0
                 async for m in client.iter_messages(dialog):
-                    if m.text and not m.sender.bot:
+                    if m.text and not m.sender.bot and not m.text.startswith('**Top Players**'):
                         if not db.insert_message(dialog.id, {'_id': m.id,
                                                              'date': m.date,
                                                              'message': m.text,
