@@ -116,9 +116,9 @@ class MongoDB:
     def text_for_cloud(self, chat_id, start=None, end=None, parts_of_speech=None):
         date_filter = {'$ne': datetime.strptime('01/01/70', '%d/%m/%y')}
         if start:
-            date_filter['$gte'] = datetime.strptime(start, '%d/%m/%y')
+            date_filter['$gte'] = start
         if end:
-            date_filter['$lte'] = datetime.strptime(end, '%d/%m/%y')
+            date_filter['$lte'] = end
 
         if parts_of_speech:
             pos_filter = {

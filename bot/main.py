@@ -3,6 +3,7 @@ import telebot
 from telebot import types
 from bot.db_select import db
 from datetime import datetime
+from bot.wcloud import generate_cloud_image
 
 if config.PROXY_ON:
     telebot.apihelper.proxy = config.PROXY
@@ -58,8 +59,9 @@ def select_interval(m: types.Message):
     if m.from_user.id not in full_user_list:
         return
     markup = types.InlineKeyboardMarkup()
-    markup.row(types.InlineKeyboardButton(text='2018 год', callback_data='Switch_interval 2018'))
-    markup.row(types.InlineKeyboardButton(text='2019 год', callback_data='Switch_interval 2019'))
+    year = datetime.now().year
+    for i in range(year - 4, year + 1):
+        markup.row(types.InlineKeyboardButton(text=str(year) + ' год', callback_data='Switch_interval ' + str(i)))
     markup.row(types.InlineKeyboardButton(text='За все время', callback_data='Switch_interval all'))
     markup.row(types.InlineKeyboardButton(text='Задать вручную', callback_data='Switch_interval manual'))
     bot.send_message(m.chat.id, 'Выберите интервал:', reply_markup=markup)
@@ -76,6 +78,8 @@ def command_start(m: types.Message):
         return
 
     info = 'chat = ' + str(chat_titles[selected_chat])
+    start = None
+    end = None
     if m.chat.id in starts:
         start = starts[m.chat.id]
         info += ', start = ' + str(start)
@@ -84,6 +88,12 @@ def command_start(m: types.Message):
         info += ', end = ' + str(end)
 
     bot.send_message(m.chat.id, info)
+    text = db.text_for_cloud(selected_chat, start=start, end=end)
+    bot.send_message(m.chat.id, text='Лоадинг...')
+    try:
+        bot.send_photo(m.chat.id, generate_cloud_image(text))
+    except ValueError:
+        bot.send_photo(m.chat.id, 'Чот не получилось. Дима посмотрит логи и починит...')
 
 
 @bot.callback_query_handler(func=lambda query: True)
