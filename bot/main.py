@@ -4,6 +4,13 @@ from telebot import types
 from bot.db_select import db
 from datetime import datetime
 from bot.wcloud import generate_cloud_image
+import logging
+
+logging.basicConfig(filename='bot.log',
+                    filemode='a',
+                    level=logging.INFO,
+                    format='%(asctime)s %(levelname)s %(message)s',
+                    datefmt='%d/%m/%Y %H:%M:%S')
 
 if config.PROXY_ON:
     telebot.apihelper.proxy = config.PROXY
@@ -19,6 +26,14 @@ ends = {}
 manuals = {}
 
 
+def log_user_activity(action, msg: types.Message):
+    if not msg.json['from']['is_bot']:
+        if msg.from_user.id not in full_user_list:
+            logging.info(f'UNKNOWN USER. {action}. {msg.json}')
+        else:
+            logging.info(f'{action}. {msg.json}')
+
+
 def get_selected_chat(m: types.Message):
     if m.chat.type == 'group':
         return m.chat.id
@@ -30,6 +45,7 @@ def get_selected_chat(m: types.Message):
 
 @bot.message_handler(commands=['start'])
 def start_command(m: types.Message):
+    log_user_activity('/start', m)
     if m.from_user.id not in full_user_list:
         return
 
@@ -46,6 +62,7 @@ def start_command(m: types.Message):
 
 @bot.message_handler(commands=['help'])
 def show_help(m: types.Message):
+    log_user_activity('/help', m)
     if m.from_user.id not in full_user_list:
         return
     bot.send_message(m.chat.id, '/start - начать пользоваться ботом. '
@@ -56,19 +73,21 @@ def show_help(m: types.Message):
 
 @bot.message_handler(commands=['interval'])
 def select_interval(m: types.Message):
+    log_user_activity('/interval', m)
     if m.from_user.id not in full_user_list:
         return
     markup = types.InlineKeyboardMarkup()
     year = datetime.now().year
     for i in range(year - 4, year + 1):
-        markup.row(types.InlineKeyboardButton(text=str(year) + ' год', callback_data='Switch_interval ' + str(i)))
+        markup.row(types.InlineKeyboardButton(text=str(i) + ' год', callback_data='Switch_interval ' + str(i)))
     markup.row(types.InlineKeyboardButton(text='За все время', callback_data='Switch_interval all'))
     markup.row(types.InlineKeyboardButton(text='Задать вручную', callback_data='Switch_interval manual'))
     bot.send_message(m.chat.id, 'Выберите интервал:', reply_markup=markup)
 
 
 @bot.message_handler(commands=['stats'])
-def command_start(m: types.Message):
+def stats_command(m: types.Message):
+    log_user_activity('/stats', m)
     if m.from_user.id not in full_user_list:
         return
 
@@ -100,6 +119,7 @@ def command_start(m: types.Message):
 def chat_select_callback(query: types.CallbackQuery):
     callback = query.data
     m = query.message
+    log_user_activity('CALLBACK', m)
     if callback.startswith('Switch_chat'):
         bot.answer_callback_query(query.id)
         # bot.send_chat_action(m.chat.id, 'typing')
@@ -141,6 +161,7 @@ def chat_select_callback(query: types.CallbackQuery):
 
 @bot.message_handler(func=lambda m: m.chat.id in manuals)
 def set_manual_interval(m: types.Message):
+    log_user_activity('INTERVAL CHANGED', m)
     if m.text:
         try:
             start = datetime.strptime(m.text[:8], '%d/%m/%y')
@@ -153,7 +174,12 @@ def set_manual_interval(m: types.Message):
             bot.send_message(m.chat.id, 'Попробуйте ещё раз...\nФормат *dd/mm/yy-dd/mm/yy*', parse_mode='markdown')
 
 
+@bot.message_handler(content_types=['text'])
+def simple_text(m: types.Message):
+    log_user_activity('SIMPLE TEXT', m)
+
+
 if __name__ == "__main__":
     my_id = config.ID
-    print('Запуск бота...')
+    logging.info('Bot started...')
     bot.polling()
