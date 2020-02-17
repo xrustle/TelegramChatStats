@@ -4,7 +4,9 @@ from telebot import types
 from bot.db_select import db
 from datetime import datetime
 from bot.wcloud import generate_cloud_image
+from bot.html_uploader import parse_html
 import logging
+
 
 logging.basicConfig(filename='bot.log',
                     filemode='a',
@@ -101,18 +103,34 @@ def stats_command(m: types.Message):
     end = None
     if m.chat.id in starts:
         start = starts[m.chat.id]
-        info += ', start = ' + str(start)
+        info += '\nstart = ' + str(start)
     if m.chat.id in ends:
         end = ends[m.chat.id]
-        info += ', end = ' + str(end)
+        info += '\nend = ' + str(end)
 
     bot.send_message(m.chat.id, info)
-    text = db.text_for_cloud(selected_chat, start=start, end=end)
-    bot.send_message(m.chat.id, text='Лоадинг...')
     try:
+        text = db.text_for_cloud(selected_chat, start=start, end=end)
+        bot.send_message(m.chat.id, text='Лоадинг...')
         bot.send_photo(m.chat.id, generate_cloud_image(text))
-    except ValueError:
-        bot.send_photo(m.chat.id, 'Чот не получилось. Дима посмотрит логи и починит...')
+    except Exception as e:
+        bot.reply_to(m, e)
+
+
+@bot.message_handler(func=lambda message: message.document.mime_type == 'text/html', content_types=['document'])
+def upload_html(m: types.Message):
+    log_user_activity('UPLOAD HTML', m)
+    if m.from_user.id not in full_user_list:
+        return
+    try:
+        bot.reply_to(m, 'Файл получили. Обрабатываем...')
+        file_info = bot.get_file(m.document.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        uploaded_chat = parse_html(m.from_user.id, downloaded_file)
+        bot.reply_to(m, f'Готово. Теперь вам можно смотреть статистику по чатику *{uploaded_chat["name"]}*\n'
+                        f'Загружено *{uploaded_chat["count"]}* новых сообщений', parse_mode='markdown')
+    except Exception as e:
+        bot.reply_to(m, e)
 
 
 @bot.callback_query_handler(func=lambda query: True)

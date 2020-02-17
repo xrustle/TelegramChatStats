@@ -173,3 +173,4 @@ geckodriver.log
 bot/config.json
 /bot/*.session
 /bot/*.session-journals
+/bot/*.html
