@@ -11,13 +11,8 @@ class MongoDB:
     def __init__(self):
         client = MongoClient(**MONGO['uri'])
         self.db = client.get_database(MONGO['db'])
-
-    def get_user_chat_list(self, user_id):
-        lst = {}
-        chats = self.db['Members'].find({'users.id': user_id})
-        for chat in chats:
-            lst[chat['_id']] = chat['title']
-        return lst
+        self.full_chat_list = self.get_full_chat_list()
+        self.full_user_list = self.get_full_user_list()
 
     def get_full_chat_list(self):
         lst = {}
@@ -26,9 +21,19 @@ class MongoDB:
             lst[chat['_id']] = chat['title']
         return lst
 
-    def full_user_list(self):
+    def update_full_chat_list(self):
+        self.full_chat_list = self.get_full_chat_list()
+
+    def get_full_user_list(self):
         users = self.db['Members'].distinct('users.id')
         return users
+
+    def get_user_chat_list(self, user_id):
+        lst = {}
+        chats = self.db['Members'].find({'users.id': user_id})
+        for chat in chats:
+            lst[chat['_id']] = chat['title']
+        return lst
 
     def most_commonly_used_words(self, chat_id, start=None, end=None, parts_of_speech=None):
         date_filter = {'$ne': datetime.strptime('01/01/70', '%d/%m/%y')}

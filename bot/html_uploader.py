@@ -1,14 +1,19 @@
 from lxml import html
+from bot.config import ID
 from datetime import datetime
 from bot.db import db
 import re
 import os
 
 
-def parse_html(user_id: int, file: bytes):
+def get_title(file: bytes):
     text = html.fromstring(file)
     chat_name = text.xpath("//div[@class='page_header']//div[@class='text bold']/text()")
-    chat_name = re.sub(r'\r?\n', ' ', chat_name[0]).strip(' ')
+    return re.sub(r'\r?\n', ' ', chat_name[0]).strip(' ')
+
+
+def parse_html(chat_name: str, user_id: int, file: bytes):
+    text = html.fromstring(file)
 
     messages = text.xpath("//div[contains(@class, 'message default clearfix') or "
                           "contains(@class, 'message default clearfix joined')]")
@@ -28,12 +33,14 @@ def parse_html(user_id: int, file: bytes):
             from_name = last_from_name
 
         text = ''
-        for text_part in message.xpath(".//div[@class='text']")[0].itertext():
-            text += text_part
+        xpath_text = message.xpath(".//div[@class='text']")
+        if xpath_text:
+            for text_part in xpath_text[0].itertext():
+                text += text_part
         text = re.sub(r'\r?\n', ' ', text).strip(' ')
 
         if text:
-            if not db.insert_message('Chat'+str(user_id)+chat_name,
+            if not db.insert_message(str(user_id)+chat_name,
                                      {'_id': msg_id,
                                       'date': date,
                                       'message': text,
@@ -42,13 +49,16 @@ def parse_html(user_id: int, file: bytes):
             else:
                 number_of_new_messages += 1
 
-    ret_dict = {'name': chat_name,
-                'count': number_of_new_messages}
-    return ret_dict
+    users = [{'id': user_id}, {'id': ID}]
+    db.insert_members(str(user_id)+chat_name, {'title': u'\U0001F4E5' + ' ' + chat_name, 'users': users})
+    db.handle_new_messages()
+
+    return number_of_new_messages
 
 
 if __name__ == '__main__':
-    path = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(path, 'messages.html'), 'rb') as chat_file:
-        data = chat_file.read()
-        print(parse_html(1234, data))
+    # path = os.path.dirname(os.path.abspath(__file__))
+    # with open(os.path.join(path, 'messages.html'), 'rb') as chat_file:
+    #     data = chat_file.read()
+    #     print(parse_html(1234, data))
+    db.handle_new_messages()

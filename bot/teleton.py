@@ -42,7 +42,7 @@ def collect_messages():
                                 'last_name': member.last_name,
                                 'username': member.username}
                         users.append(user)
-                db.insert_members(dialog.id, {'title': dialog.name, 'users': users})
+                db.insert_members(dialog.id, {'title': u'\U0001F465' + ' ' + dialog.name, 'users': users})
                 print(f'\tНовых сообщений собрано: {number_of_new_messages}')
     with client:
         client.loop.run_until_complete(run())

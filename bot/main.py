@@ -4,9 +4,11 @@ from telebot import types
 from bot.db_select import db
 from datetime import datetime
 from bot.wcloud import generate_cloud_image
-from bot.html_uploader import parse_html
+from bot.html_uploader import parse_html, get_title
 import logging
+from threading import Thread, Lock
 
+lock = Lock()
 
 logging.basicConfig(filename='bot.log',
                     filemode='a',
@@ -19,9 +21,6 @@ if config.PROXY_ON:
 
 bot = telebot.TeleBot(config.TOKEN)
 
-full_user_list = db.full_user_list()
-chat_titles = db.get_full_chat_list()
-
 users = {}
 starts = {}
 ends = {}
@@ -30,7 +29,7 @@ manuals = {}
 
 def log_user_activity(action, msg: types.Message):
     if not msg.json['from']['is_bot']:
-        if msg.from_user.id not in full_user_list:
+        if msg.from_user.id not in db.full_user_list:
             logging.info(f'UNKNOWN USER. {action}. {msg.json}')
         else:
             logging.info(f'{action}. {msg.json}')
@@ -48,7 +47,7 @@ def get_selected_chat(m: types.Message):
 @bot.message_handler(commands=['start'])
 def start_command(m: types.Message):
     log_user_activity('/start', m)
-    if m.from_user.id not in full_user_list:
+    if m.from_user.id not in db.full_user_list:
         return
 
     if m.chat.type == 'group':
@@ -65,7 +64,7 @@ def start_command(m: types.Message):
 @bot.message_handler(commands=['help'])
 def show_help(m: types.Message):
     log_user_activity('/help', m)
-    if m.from_user.id not in full_user_list:
+    if m.from_user.id not in db.full_user_list:
         return
     bot.send_message(m.chat.id, '/start - начать пользоваться ботом. '
                                 'Позволяет выбрать чат для статистики при личном общении с ботом.\n'
@@ -76,7 +75,7 @@ def show_help(m: types.Message):
 @bot.message_handler(commands=['interval'])
 def select_interval(m: types.Message):
     log_user_activity('/interval', m)
-    if m.from_user.id not in full_user_list:
+    if m.from_user.id not in db.full_user_list:
         return
     markup = types.InlineKeyboardMarkup()
     year = datetime.now().year
@@ -90,7 +89,7 @@ def select_interval(m: types.Message):
 @bot.message_handler(commands=['stats'])
 def stats_command(m: types.Message):
     log_user_activity('/stats', m)
-    if m.from_user.id not in full_user_list:
+    if m.from_user.id not in db.full_user_list:
         return
 
     selected_chat = get_selected_chat(m)
@@ -98,15 +97,15 @@ def stats_command(m: types.Message):
         start_command(m)
         return
 
-    info = 'chat = ' + str(chat_titles[selected_chat])
+    info = str(db.full_chat_list[selected_chat])
     start = None
     end = None
     if m.chat.id in starts:
         start = starts[m.chat.id]
-        info += '\nstart = ' + str(start)
+        info += '\nC ' + str(start)
     if m.chat.id in ends:
         end = ends[m.chat.id]
-        info += '\nend = ' + str(end)
+        info += '\nПо ' + str(end)
 
     bot.send_message(m.chat.id, info)
     try:
@@ -117,20 +116,27 @@ def stats_command(m: types.Message):
         bot.reply_to(m, e)
 
 
+def parse_html_file(uploaded_chat_title, m: types.Message, f: bytes):
+    with lock:
+        count = parse_html(uploaded_chat_title, m.from_user.id, f)
+        db.update_full_chat_list()
+        bot.reply_to(m, f'Загружено *{count}* новых сообщений чатика *{uploaded_chat_title}*', parse_mode='markdown')
+
+
 @bot.message_handler(func=lambda message: message.document.mime_type == 'text/html', content_types=['document'])
 def upload_html(m: types.Message):
     log_user_activity('UPLOAD HTML', m)
-    if m.from_user.id not in full_user_list:
+    if m.from_user.id not in db.full_user_list:
         return
-    try:
-        bot.reply_to(m, 'Файл получили. Обрабатываем...')
-        file_info = bot.get_file(m.document.file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-        uploaded_chat = parse_html(m.from_user.id, downloaded_file)
-        bot.reply_to(m, f'Готово. Теперь вам можно смотреть статистику по чатику *{uploaded_chat["name"]}*\n'
-                        f'Загружено *{uploaded_chat["count"]}* новых сообщений', parse_mode='markdown')
-    except Exception as e:
-        bot.reply_to(m, e)
+    # try:
+    file_info = bot.get_file(m.document.file_id)
+    downloaded_file = bot.download_file(file_info.file_path)
+    uploaded_chat_title = get_title(downloaded_file)
+    bot.reply_to(m, f'Загружаем чатик *{uploaded_chat_title}*. Обрабатываем в фоновом режиме...')
+
+    Thread(target=parse_html_file, args=(uploaded_chat_title, m, downloaded_file)).start()
+    # except Exception as e:
+    #     bot.reply_to(m, e)
 
 
 @bot.callback_query_handler(func=lambda query: True)
@@ -141,12 +147,12 @@ def chat_select_callback(query: types.CallbackQuery):
     if callback.startswith('Switch_chat'):
         bot.answer_callback_query(query.id)
         # bot.send_chat_action(m.chat.id, 'typing')
-        new_chat_id = int(callback[12:])
+        new_chat_id = callback[12:]
         old_selected_chat = users.get(query.from_user.id)
         if old_selected_chat and old_selected_chat == new_chat_id:
-            text = 'Вы уже выбрали чат *' + chat_titles[new_chat_id] + '*'
+            text = 'Вы уже выбрали чат *' + db.full_chat_list[new_chat_id] + '*'
         else:
-            text = 'Вы выбрали чат *' + chat_titles[new_chat_id] + '*'
+            text = 'Вы выбрали чат *' + db.full_chat_list[new_chat_id] + '*'
         users[query.from_user.id] = new_chat_id
         bot.edit_message_text(chat_id=m.chat.id,
                               message_id=m.message_id,
