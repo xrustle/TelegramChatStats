@@ -1,5 +1,5 @@
-from bot.config import API, MTPROTO, CHATS
-from telethon import TelegramClient, connection
+from bot.config import API, CHATS
+from telethon import TelegramClient
 import logging
 from bot.db import db
 
@@ -7,11 +7,7 @@ from bot.db import db
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.WARNING)
 
-client = TelegramClient(
-            'session-telegram',
-            **API,
-            connection=connection.ConnectionTcpMTProxyRandomizedIntermediate,
-            proxy=tuple(MTPROTO))
+client = TelegramClient('session-telegram', **API)
 
 
 def collect_messages():
