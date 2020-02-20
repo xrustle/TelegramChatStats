@@ -17,7 +17,7 @@ class MongoDB:
         result = self.db[collection + str(chat_id)].update_one({'_id': _id},
                                                                {'$set': msg},
                                                                upsert=True)
-        return result.upserted_id
+        return result.raw_result['updatedExisting']
 
     def insert_members(self, chat, members):
         result = self.db['Members'].update_one({'_id': str(chat)},
