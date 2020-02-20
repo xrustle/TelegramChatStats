@@ -3,7 +3,6 @@ from bot.config import ID
 from datetime import datetime
 from bot.db import db
 import re
-import os
 
 
 def get_title(file: bytes):
@@ -40,11 +39,11 @@ def parse_html(chat_name: str, user_id: int, file: bytes):
         text = re.sub(r'\r?\n', ' ', text).strip(' ')
 
         if text:
-            if not db.insert_message(str(user_id)+chat_name,
-                                     {'_id': msg_id,
-                                      'date': date,
-                                      'message': text,
-                                      'from_id': from_name}):
+            if db.insert_message(str(user_id)+chat_name,
+                                 {'_id': msg_id,
+                                  'date': date,
+                                  'message': text,
+                                  'from_id': from_name}):
                 break
             else:
                 number_of_new_messages += 1

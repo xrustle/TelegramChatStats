@@ -19,13 +19,12 @@ def collect_messages():
             if dialog.id in CHATS:
                 print('Собираем данные диалога: ', dialog.name)
                 number_of_new_messages = 0
-                number_of_new_members = 0
                 async for m in client.iter_messages(dialog):
                     if m.text and not m.sender.bot and not m.text.startswith('**Top Players**'):
-                        if not db.insert_message(dialog.id, {'_id': m.id,
-                                                             'date': m.date,
-                                                             'message': m.text,
-                                                             'from_id': m.sender_id}):
+                        if db.insert_message(dialog.id, {'_id': m.id,
+                                                         'date': m.date,
+                                                         'message': m.text,
+                                                         'from_id': m.sender_id}):
                             break
                         else:
                             number_of_new_messages += 1

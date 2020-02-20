@@ -12,7 +12,9 @@ class MongoDB:
         self.db = client.get_database(MONGO['db'])
 
     def insert_message(self, chat_id, msg, collection='Chat'):
-        result = self.db[collection + str(chat_id)].update_one({'_id': msg['_id']},
+        _id = msg['_id']
+        del msg['_id']
+        result = self.db[collection + str(chat_id)].update_one({'_id': _id},
                                                                {'$set': msg},
                                                                upsert=True)
         return result.upserted_id

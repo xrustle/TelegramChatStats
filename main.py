@@ -128,15 +128,15 @@ def upload_html(m: types.Message):
     log_user_activity('UPLOAD HTML', m)
     if m.from_user.id not in db.full_user_list:
         return
-    # try:
-    file_info = bot.get_file(m.document.file_id)
-    downloaded_file = bot.download_file(file_info.file_path)
-    uploaded_chat_title = get_title(downloaded_file)
-    bot.reply_to(m, f'Загружаем чатик *{uploaded_chat_title}*. Обрабатываем в фоновом режиме...')
+    try:
+        file_info = bot.get_file(m.document.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        uploaded_chat_title = get_title(downloaded_file)
+        bot.reply_to(m, f'Загружаем чатик *{uploaded_chat_title}*. Обрабатываем в фоновом режиме...')
 
-    Thread(target=parse_html_file, args=(uploaded_chat_title, m, downloaded_file)).start()
-    # except Exception as e:
-    #     bot.reply_to(m, e)
+        Thread(target=parse_html_file, args=(uploaded_chat_title, m, downloaded_file)).start()
+    except Exception as e:
+        bot.reply_to(m, e)
 
 
 @bot.callback_query_handler(func=lambda query: True)

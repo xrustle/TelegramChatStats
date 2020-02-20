@@ -157,15 +157,10 @@ class MongoDB:
                     'date': date_filter
                 }
             },
-            {  # Выносим поля
-                '$addFields': {
-                    'word': '$words.normal_form'
-                }
-            },
             {
                 '$project': {
                     '_id': 0,
-                    'word': '$word'
+                    'word': '$words.normal_form'
                 }
             },
             {  # Убрать пустые
