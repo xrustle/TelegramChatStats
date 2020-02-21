@@ -118,6 +118,54 @@ class MongoDB:
         for word in all_words:
             print(word)
 
+    def most_commonly_used_emoticons(self, chat_id, start=None, end=None):
+        date_filter = {'$ne': datetime.strptime('01/01/70', '%d/%m/%y')}
+        if start:
+            date_filter['$gte'] = datetime.strptime(start, '%d/%m/%y')
+        if end:
+            date_filter['$lte'] = datetime.strptime(end, '%d/%m/%y')
+
+        return self.db['Chat' + str(chat_id)].aggregate(pipeline=[
+            {  # Фильтруем по частям речи слова в массиве
+                '$project': {
+                    '_id': 0,
+                    'emoticons': '$emoticons',
+                    'date': '$date',
+                    'from_id': '$from_id'
+                }
+            },
+            {  # Разворачиваем массив слов в отдельные записи
+                '$unwind': '$emoticons'
+            },
+            {  # Убрать пустые
+                '$match': {
+                    'emoticons': {
+                        '$exists': True,
+                        '$nin': [[], None]
+                    },
+                    'date': date_filter
+                }
+            },
+            {  # Группируем по словам и частям речи
+                '$group': {
+                    '_id': {
+                        'emoticon': '$emoticons'
+                    },
+                    'count': {'$sum': 1}
+                }
+            },
+            {  # Фильтруем по частям речи слова в массиве
+                '$project': {
+                    '_id': 0,
+                    'emoticon': '$_id.emoticon',
+                    'count': '$count'
+                }
+            },
+            {  # Сортируем. Сверху будут наибольшие значения
+                '$sort': {'count': -1}
+            }
+        ])
+
     def text_for_cloud(self, chat_id, start=None, end=None, parts_of_speech=None):
         date_filter = {'$ne': datetime.strptime('01/01/70', '%d/%m/%y')}
         if start:
@@ -182,7 +230,8 @@ db = MongoDB()
 
 if __name__ == '__main__':
     # chat = '-397977949'  # J + D
-    chat = '-396450692'  # work chat
-    db.text_for_cloud(chat)
+    chat = '186640290'  # work chat
+    #db.text_for_cloud(chat)
+    db.most_commonly_used_emoticons(chat)
     # print(db.full_user_list())
     # print(STOPWORDS)

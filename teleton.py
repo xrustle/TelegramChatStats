@@ -1,4 +1,4 @@
-from bot.config import API, CHATS
+from bot.config import API, CHATS, ID
 from telethon import TelegramClient
 import logging
 from bot.db import db
@@ -29,7 +29,7 @@ def collect_messages():
                         else:
                             number_of_new_messages += 1
                 members = await client.get_participants(dialog)
-                users = []
+                users = [{'id': ID}]
                 for member in members:
                     if not member.bot:
                         user = {'id': member.id,
