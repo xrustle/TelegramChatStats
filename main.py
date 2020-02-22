@@ -4,13 +4,16 @@ from telebot import types
 from bot.db_select import db
 from datetime import datetime
 from bot.wcloud import generate_cloud_image
-from bot.html_uploader import parse_html, get_title
+from bot.html_uploader import parse_html
 import logging
 from threading import Thread, Lock
+import re
+import os
 
 lock = Lock()
 
-logging.basicConfig(filename='bot.log',
+path = os.path.dirname(os.path.abspath(__file__))
+logging.basicConfig(filename=os.path.join(path, 'bot.log'),
                     filemode='a',
                     level=logging.INFO,
                     format='%(asctime)s %(levelname)s %(message)s',
@@ -28,11 +31,16 @@ manuals = {}
 
 
 def log_user_activity(action, msg: types.Message):
-    if not msg.json['from']['is_bot']:
-        if msg.from_user.id not in db.full_user_list:
-            logging.info(f'UNKNOWN USER. {action}. {msg.json}')
-        else:
-            logging.info(f'{action}. {msg.json}')
+    try:
+        if not msg.json['from']['is_bot']:
+            text = re.sub(r"[^\x00-\x7F]", " ", str(msg.json))
+            if msg.from_user.id not in db.full_user_list:
+                logging.info(f'UNKNOWN USER. {action}. {text}')
+            else:
+                logging.info(f'{action}. {text}')
+    except Exception as e:
+        bot.send_message(msg.chat.id, 'Error in action: ' + action)
+        bot.send_message(msg.chat.id, e)
 
 
 def get_selected_chat(m: types.Message):
@@ -156,11 +164,18 @@ def emoji_command(m: types.Message):
         bot.send_message(m.chat.id, e)
 
 
-def parse_html_file(uploaded_chat_title, m: types.Message, f: bytes):
+def parse_html_file(html_file, m: types.Message):
     with lock:
-        count = parse_html(uploaded_chat_title, m.from_user.id, f)
+        logging.info('SYSTEM start upload file ' + html_file.file_path)
+        downloaded_file = bot.download_file(html_file.file_path)
+        # if not os.path.exists(os.path.join(path, 'uploaded')):
+        #     os.makedirs(os.path.join(path, 'uploaded'))
+        # with open(os.path.join(path, 'uploaded', html_file.file_id + '.html'), 'wb') as file:
+        #     file.write(downloaded_file)
+        info = parse_html(m.from_user.id, downloaded_file)
         db.update_full_chat_list()
-        bot.reply_to(m, f'Загружено *{count}* новых сообщений чатика *{uploaded_chat_title}*', parse_mode='markdown')
+        bot.reply_to(m, f'Загружено *{info["count"]}* новых сообщений чатика *{info["title"]}*', parse_mode='markdown')
+        logging.info('SYSTEM uploaded file ' + html_file.file_path)
 
 
 @bot.message_handler(content_types=['document'])
@@ -170,12 +185,9 @@ def upload_html(m: types.Message):
         if m.from_user.id not in db.full_user_list:
             return
         try:
-            file_info = bot.get_file(m.document.file_id)
-            downloaded_file = bot.download_file(file_info.file_path)
-            uploaded_chat_title = get_title(downloaded_file)
-            bot.reply_to(m, f'Загружаем чатик *{uploaded_chat_title}*. Обрабатываем в фоновом режиме...')
-
-            Thread(target=parse_html_file, args=(uploaded_chat_title, m, downloaded_file)).start()
+            html_file = bot.get_file(m.document.file_id)
+            Thread(target=parse_html_file, args=(html_file, m)).start()
+            bot.reply_to(m, f'Загружаем чатик. Обрабатываем в фоновом режиме...')
         except Exception as e:
             bot.send_message(m.chat.id, e)
 
@@ -190,6 +202,8 @@ def chat_select_callback(query: types.CallbackQuery):
             bot.answer_callback_query(query.id)
             new_chat_id = callback[12:]
             old_selected_chat = users.get(query.from_user.id)
+            print(new_chat_id)
+            print(db.get_user_chat_list(m.chat.id))
             if old_selected_chat and old_selected_chat == new_chat_id:
                 text = 'Вы уже выбрали чат *' + db.full_chat_list[new_chat_id] + '*'
             elif new_chat_id in db.get_user_chat_list(m.chat.id):

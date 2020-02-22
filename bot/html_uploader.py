@@ -5,14 +5,10 @@ from bot.db import db
 import re
 
 
-def get_title(file: bytes):
+def parse_html(user_id: int, file: bytes):
     text = html.fromstring(file)
     chat_name = text.xpath("//div[@class='page_header']//div[@class='text bold']/text()")
-    return re.sub(r'\r?\n', ' ', chat_name[0]).strip(' ')
-
-
-def parse_html(chat_name: str, user_id: int, file: bytes):
-    text = html.fromstring(file)
+    chat_name = re.sub(r'\r?\n', ' ', chat_name[0]).strip(' ')
 
     messages = text.xpath("//div[contains(@class, 'message default clearfix') or "
                           "contains(@class, 'message default clearfix joined')]")
@@ -52,7 +48,8 @@ def parse_html(chat_name: str, user_id: int, file: bytes):
     db.insert_members(str(user_id)+chat_name, {'title': u'\U0001F4E5' + ' ' + chat_name, 'users': users})
     db.handle_new_messages()
 
-    return number_of_new_messages
+    return {'count': number_of_new_messages,
+            'title': chat_name}
 
 
 if __name__ == '__main__':
