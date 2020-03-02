@@ -211,7 +211,7 @@ class MySQL:
 
     def most_commonly_used_emoticons(self, chat_id, start=None, end=None):
         sql = "SELECT emoticon, COUNT(*) FROM emoticons JOIN messages ON messages.id = message_id " \
-              "WHERE chat_id = %s GROUP BY emoticon ORDER BY COUNT(*) DESC"
+              "WHERE chat_id = %s"
         val = (chat_id,)
         if start:
             sql += " AND creation_date >= %s"
@@ -219,7 +219,7 @@ class MySQL:
         if end:
             sql += " AND creation_date <= %s"
             val = val + (end,)
-        self.mycursor.execute(sql + ';', val)
+        self.mycursor.execute(sql + ' GROUP BY emoticon ORDER BY COUNT(*) DESC;', val)
         emoticons = self.mycursor.fetchall()
         return emoticons
 

@@ -1,5 +1,4 @@
-start - select chat
-help - instruction
-interval - select date interval
-wordcloud - word cloud
-emoji - most commonly used emoticons
+help - инструкция
+chat - выбрать чат
+interval - выбрать интервал дат
+stats - статистика

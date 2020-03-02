@@ -56,7 +56,23 @@ def get_selected_chat(m: types.Message):
 
 
 @bot.message_handler(commands=['start'])
-def start_command(m: types.Message):
+def show_help(m: types.Message):
+    log_user_activity('/help', m)
+    if m.from_user.id not in db.full_user_list:
+        return
+    bot.send_message(m.chat.id, '/help - вызвать данную инструкцию.\n'
+                                '/chat - выбрать чат для статистики.\n'
+                                '/interval - выбрать временной интервал, по которому будет отображаться статистика.\n'
+                                '/stats - нажмите для получения статистики по выбранному чату и диапазону дат.')
+
+
+@bot.message_handler(commands=['help'])
+def help_command(m: types.Message):
+    show_help(m)
+
+
+@bot.message_handler(commands=['chat'])
+def select_chat(m: types.Message):
     log_user_activity('/start', m)
     if m.from_user.id not in db.full_user_list:
         return
@@ -77,22 +93,16 @@ def start_command(m: types.Message):
         bot.send_message(m.chat.id, e)
 
 
-@bot.message_handler(commands=['help'])
-def show_help(m: types.Message):
-    log_user_activity('/help', m)
-    if m.from_user.id not in db.full_user_list:
-        return
-    bot.send_message(m.chat.id, '/start - начать пользоваться ботом. '
-                                'Позволяет выбрать чат для статистики при личном общении с ботом.\n'
-                                '/interval - выбрать временной интервал, по которому будет отображаться статистика.\n'
-                                '/wordcloud - бот пришлет облако слов по выбранному чату за выбранный период.\n'
-                                '/emoji - бот пришлет список самых популярных эмодзи.')
-
-
 @bot.message_handler(commands=['interval'])
 def select_interval(m: types.Message):
     log_user_activity('/interval', m)
     if m.from_user.id not in db.full_user_list:
+        return
+
+    selected_chat = get_selected_chat(m)
+    if not selected_chat:
+        bot.send_message(m.chat.id, 'Чтобы выбирать интервал, сначала нужно выбрать чат')
+        select_chat(m)
         return
 
     try:
@@ -109,12 +119,6 @@ def select_interval(m: types.Message):
         bot.send_message(m.chat.id, e)
 
 
-def send_word_cloud(selected_chat, start, end, chat_id):
-    with lock:
-        text = db.text_for_cloud(selected_chat, start=start, end=end)
-        bot.send_photo(chat_id, generate_cloud_image(text))
-
-
 @bot.message_handler(commands=['stats'])
 def stats_command(m: types.Message):
     log_user_activity('/stats', m)
@@ -123,53 +127,15 @@ def stats_command(m: types.Message):
 
     selected_chat = get_selected_chat(m)
     if not selected_chat:
-        start_command(m)
+        bot.send_message(m.chat.id, 'Чтобы получить статистику, нужно выбрать чат')
+        select_chat(m)
         return
 
     try:
-        info = db.full_chat_list[selected_chat]
-        start = None
-        end = None
-        if m.chat.id in starts:
-            start = starts[m.chat.id]
-            info += '\nC ' + str(start)
-        if m.chat.id in ends:
-            end = ends[m.chat.id]
-            info += '\nПо ' + str(end)
-
-        bot.send_message(m.chat.id, info)
-        bot.send_message(m.chat.id, text='Лоадинг...')
-
-        send_word_cloud(selected_chat, start, end, m.chat.id)
-    except Exception as e:
-        traceback_error_string = traceback.format_exc()
-        logging.error(traceback_error_string)
-        bot.send_message(m.chat.id, e)
-
-
-@bot.message_handler(commands=['emoji'])
-def emoji_command(m: types.Message):
-    log_user_activity('/emoji', m)
-    if m.from_user.id not in db.full_user_list:
-        return
-
-    selected_chat = get_selected_chat(m)
-    if not selected_chat:
-        start_command(m)
-        return
-
-    try:
-        emoticons = db.most_commonly_used_emoticons(selected_chat)
-        text = ''
-        num = 0
-        limit = 30
-        for emoji in emoticons:
-            num += 1
-            if num > limit:
-                break
-            text += f'`{emoji[0]} {str(emoji[1])} `'
-
-        bot.send_message(m.chat.id, text=text, parse_mode='markdown')
+        markup = types.InlineKeyboardMarkup()
+        markup.row(types.InlineKeyboardButton(text='Облако слов', callback_data='Stats wcloud'))
+        markup.row(types.InlineKeyboardButton(text='Самые частые эмодзи', callback_data='Stats emoji'))
+        bot.send_message(m.chat.id, 'На сегодня могу предложить следующее:', reply_markup=markup)
     except Exception as e:
         traceback_error_string = traceback.format_exc()
         logging.error(traceback_error_string)
@@ -218,6 +184,66 @@ def current_chat_info(chat_id, start, end):
            f'`Слов      `{str(info[1])}\n' \
            f'`Эмодзи    `{str(info[2])}'
     return text
+
+
+def send_word_cloud(selected_chat, start, end, chat_id):
+    with lock:
+        text = db.text_for_cloud(selected_chat, start=start, end=end)
+        bot.send_photo(chat_id, generate_cloud_image(text))
+
+
+def wcloud(m: types.Message, selected_chat):
+    log_user_activity('WCLOUD', m)
+
+    try:
+        bot.edit_message_text(chat_id=m.chat.id,
+                              message_id=m.message_id,
+                              text='Создаем облако...',
+                              parse_mode='markdown')
+        start = None
+        end = None
+        if m.chat.id in starts:
+            start = starts[m.chat.id]
+        if m.chat.id in ends:
+            end = ends[m.chat.id]
+        send_word_cloud(selected_chat, start, end, m.chat.id)
+    except Exception as e:
+        traceback_error_string = traceback.format_exc()
+        logging.error(traceback_error_string)
+        bot.send_message(m.chat.id, e)
+
+
+def emoji(m: types.Message, selected_chat):
+    log_user_activity('EMOJI', m)
+    try:
+        bot.edit_message_text(chat_id=m.chat.id,
+                              message_id=m.message_id,
+                              text='Строим статистику...',
+                              parse_mode='markdown')
+        start = None
+        end = None
+        if m.chat.id in starts:
+            start = starts[m.chat.id]
+        if m.chat.id in ends:
+            end = ends[m.chat.id]
+        emoticons = db.most_commonly_used_emoticons(selected_chat, start, end)
+        text = ''
+        num = 0
+        limit = 30
+        for emoji in emoticons:
+            num += 1
+            if num > limit:
+                break
+            text += f'`{emoji[0]} {str(emoji[1])} `'
+
+        bot.edit_message_text(chat_id=m.chat.id,
+                              message_id=m.message_id,
+                              text=text,
+                              parse_mode='markdown')
+    except Exception as e:
+        traceback_error_string = traceback.format_exc()
+        logging.error(traceback_error_string)
+        bot.send_message(m.chat.id, e)
 
 
 @bot.callback_query_handler(func=lambda query: True)
@@ -270,6 +296,15 @@ def chat_select_callback(query: types.CallbackQuery):
                                       message_id=m.message_id,
                                       text=text,
                                       parse_mode='markdown')
+        elif callback.startswith('Stats'):
+            bot.answer_callback_query(query.id)
+            stats_type = callback[6:]
+            selected_chat = get_selected_chat(m)
+            if stats_type == 'wcloud':
+                wcloud(m, selected_chat)
+            elif stats_type == 'emoji':
+                emoji(m, selected_chat)
+
     except Exception as e:
         traceback_error_string = traceback.format_exc()
         logging.error(traceback_error_string)
