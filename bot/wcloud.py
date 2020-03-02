@@ -9,6 +9,9 @@ import io
 def generate_cloud_image(text):
     d = os.path.dirname(__file__)
 
+    file = os.path.dirname(__file__)
+    stopwords = set(map(str.strip, open(os.path.join(file, 'stopwords.txt'), encoding='utf-8-sig').readlines()))
+
     cloud_image = np.array(Image.open(os.path.join(d, 'cloud.png')))
     cloud_image = cloud_image[::3, ::3]
 
@@ -26,7 +29,8 @@ def generate_cloud_image(text):
                    relative_scaling=1,
                    colormap='Pastel1',
                    background_color='black',
-                   repeat=False)
+                   repeat=False,
+                   stopwords=stopwords)
 
     wc.generate(text)
 

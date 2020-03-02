@@ -10,7 +10,7 @@ TOKEN = conf['token']
 PROXY = conf['proxy']
 PROXY_ON = conf['proxy_on']
 ID = conf['id']
-MONGO = conf['mongo']
+MYSQL = conf['mysql']
 API = conf['api']
 MTPROTO = conf['mtproto']
 

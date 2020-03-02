@@ -1,12 +1,14 @@
 import bot.config as config
 import telebot
 from telebot import types
-from bot.db_select import db
+from bot.db_mysql import db
 from datetime import datetime
 from bot.wcloud import generate_cloud_image
 from bot.html_uploader import parse_html
 import logging
 from threading import Thread, Lock
+import traceback
+import time
 import re
 import os
 
@@ -14,7 +16,7 @@ lock = Lock()
 
 path = os.path.dirname(os.path.abspath(__file__))
 logging.basicConfig(filename=os.path.join(path, 'bot.log'),
-                    filemode='a',
+                    filemode='w',
                     level=logging.INFO,
                     format='%(asctime)s %(levelname)s %(message)s',
                     datefmt='%d/%m/%Y %H:%M:%S')
@@ -39,7 +41,8 @@ def log_user_activity(action, msg: types.Message):
             else:
                 logging.info(f'{action}. {text}')
     except Exception as e:
-        bot.send_message(msg.chat.id, 'Error in action: ' + action)
+        traceback_error_string = traceback.format_exc()
+        logging.error(traceback_error_string)
         bot.send_message(msg.chat.id, e)
 
 
@@ -65,10 +68,12 @@ def start_command(m: types.Message):
             chat_list = db.get_user_chat_list(m.chat.id)
             markup = types.InlineKeyboardMarkup()
             for chat_id in chat_list:
-                markup.row(types.InlineKeyboardButton(text=str(chat_list[chat_id]),
+                markup.row(types.InlineKeyboardButton(text=str(db.full_chat_list[chat_id]),
                                                       callback_data='Switch_chat ' + str(chat_id)))
             bot.send_message(m.chat.id, 'Выберите чатик:', reply_markup=markup)
     except Exception as e:
+        traceback_error_string = traceback.format_exc()
+        logging.error(traceback_error_string)
         bot.send_message(m.chat.id, e)
 
 
@@ -80,7 +85,8 @@ def show_help(m: types.Message):
     bot.send_message(m.chat.id, '/start - начать пользоваться ботом. '
                                 'Позволяет выбрать чат для статистики при личном общении с ботом.\n'
                                 '/interval - выбрать временной интервал, по которому будет отображаться статистика.\n'
-                                '/stats - запросить статистику. Бот предложит несколько вариантов.')
+                                '/wordcloud - бот пришлет облако слов по выбранному чату за выбранный период.\n'
+                                '/emoji - бот пришлет список самых популярных эмодзи.')
 
 
 @bot.message_handler(commands=['interval'])
@@ -98,6 +104,8 @@ def select_interval(m: types.Message):
         markup.row(types.InlineKeyboardButton(text='Задать вручную', callback_data='Switch_interval manual'))
         bot.send_message(m.chat.id, 'Выберите интервал:', reply_markup=markup)
     except Exception as e:
+        traceback_error_string = traceback.format_exc()
+        logging.error(traceback_error_string)
         bot.send_message(m.chat.id, e)
 
 
@@ -119,7 +127,7 @@ def stats_command(m: types.Message):
         return
 
     try:
-        info = str(db.full_chat_list[selected_chat])
+        info = db.full_chat_list[selected_chat]
         start = None
         end = None
         if m.chat.id in starts:
@@ -134,6 +142,8 @@ def stats_command(m: types.Message):
 
         send_word_cloud(selected_chat, start, end, m.chat.id)
     except Exception as e:
+        traceback_error_string = traceback.format_exc()
+        logging.error(traceback_error_string)
         bot.send_message(m.chat.id, e)
 
 
@@ -157,10 +167,12 @@ def emoji_command(m: types.Message):
             num += 1
             if num > limit:
                 break
-            text += f'{emoji["emoticon"]}{str(emoji["count"])}\t'
+            text += f'`{emoji[0]} {str(emoji[1])} `'
 
-        bot.send_message(m.chat.id, text=text)
+        bot.send_message(m.chat.id, text=text, parse_mode='markdown')
     except Exception as e:
+        traceback_error_string = traceback.format_exc()
+        logging.error(traceback_error_string)
         bot.send_message(m.chat.id, e)
 
 
@@ -174,7 +186,11 @@ def parse_html_file(html_file, m: types.Message):
         #     file.write(downloaded_file)
         info = parse_html(m.from_user.id, downloaded_file)
         db.update_full_chat_list()
-        bot.reply_to(m, f'Загружено *{info["count"]}* новых сообщений чатика *{info["title"]}*', parse_mode='markdown')
+        bot.reply_to(m, f'{info["title"]}'
+                        f'Текстовых сообщений *{info["count"]}*'
+                        f'Сохранено сообщений *{info["handled"][0]}*'
+                        f'Слов *{info["handled"][1]}*'
+                        f'Эмодзи *{info["handled"][2]}*', parse_mode='markdown')
         logging.info('SYSTEM uploaded file ' + html_file.file_path)
 
 
@@ -189,7 +205,19 @@ def upload_html(m: types.Message):
             Thread(target=parse_html_file, args=(html_file, m)).start()
             bot.reply_to(m, f'Загружаем чатик. Обрабатываем в фоновом режиме...')
         except Exception as e:
+            traceback_error_string = traceback.format_exc()
+            logging.error(traceback_error_string)
             bot.send_message(m.chat.id, e)
+
+
+def current_chat_info(chat_id, start, end):
+    info = db.chat_info(chat_id, start, end)
+    text = f'*{db.full_chat_list[chat_id]}*\n' \
+           f'`Интервал  `{info[3].strftime("%d.%m.%y")} - {info[4].strftime("%d.%m.%y")}\n' \
+           f'`Сообщений `{str(info[0])}\n' \
+           f'`Слов      `{str(info[1])}\n' \
+           f'`Эмодзи    `{str(info[2])}'
+    return text
 
 
 @bot.callback_query_handler(func=lambda query: True)
@@ -200,14 +228,9 @@ def chat_select_callback(query: types.CallbackQuery):
         log_user_activity('CALLBACK', m)
         if callback.startswith('Switch_chat'):
             bot.answer_callback_query(query.id)
-            new_chat_id = callback[12:]
-            old_selected_chat = users.get(query.from_user.id)
-            print(new_chat_id)
-            print(db.get_user_chat_list(m.chat.id))
-            if old_selected_chat and old_selected_chat == new_chat_id:
-                text = 'Вы уже выбрали чат *' + db.full_chat_list[new_chat_id] + '*'
-            elif new_chat_id in db.get_user_chat_list(m.chat.id):
-                text = 'Вы выбрали чат *' + db.full_chat_list[new_chat_id] + '*'
+            new_chat_id = int(callback[12:])
+            if new_chat_id in db.get_user_chat_list(m.chat.id):
+                text = current_chat_info(new_chat_id, starts.get(m.chat.id), ends.get(m.chat.id))
                 users[query.from_user.id] = new_chat_id
             else:
                 text = 'Этот чат чот больше не доступен. Попробуйте выбрать снова: /start'
@@ -220,6 +243,7 @@ def chat_select_callback(query: types.CallbackQuery):
         elif callback.startswith('Switch_interval'):
             bot.answer_callback_query(query.id)
             new_interval = callback[16:]
+            selected_chat = get_selected_chat(m)
             if new_interval == 'manual':
                 manuals[m.chat.id] = 1
                 bot.edit_message_text(chat_id=m.chat.id,
@@ -227,20 +251,28 @@ def chat_select_callback(query: types.CallbackQuery):
                                       text='Отправьте сообщение с интервалом в формате\n*dd/mm/yy-dd/mm/yy*:',
                                       parse_mode='markdown')
             elif new_interval == 'all':
+                log_user_activity('INTERVAL CHANGED', m)
                 if m.chat.id in starts:
                     del starts[m.chat.id]
                 if m.chat.id in ends:
                     del ends[m.chat.id]
+                text = current_chat_info(selected_chat, starts.get(m.chat.id), ends.get(m.chat.id))
                 bot.edit_message_text(chat_id=m.chat.id,
                                       message_id=m.message_id,
-                                      text='Фильтр на даты сняты')
+                                      text=text,
+                                      parse_mode='markdown')
             else:
+                log_user_activity('INTERVAL CHANGED', m)
                 starts[m.chat.id] = datetime.strptime('01/01/' + new_interval, '%d/%m/%Y')
                 ends[m.chat.id] = datetime.strptime('31/12/' + new_interval, '%d/%m/%Y')
+                text = current_chat_info(selected_chat, starts.get(m.chat.id), ends.get(m.chat.id))
                 bot.edit_message_text(chat_id=m.chat.id,
                                       message_id=m.message_id,
-                                      text='Ура! Статистика за ' + new_interval + ' год!')
+                                      text=text,
+                                      parse_mode='markdown')
     except Exception as e:
+        traceback_error_string = traceback.format_exc()
+        logging.error(traceback_error_string)
         bot.send_message(query.message.chat.id, e)
 
 
@@ -255,14 +287,30 @@ def set_manual_interval(m: types.Message):
                 del manuals[m.chat.id]
                 starts[m.chat.id] = start
                 ends[m.chat.id] = end
-                bot.send_message(m.chat.id, 'Новый интервал установлен!\n*' + m.text[:18] + '*', parse_mode='markdown')
+
+                selected_chat = get_selected_chat(m)
+                text = current_chat_info(selected_chat, starts.get(m.chat.id), ends.get(m.chat.id))
+                bot.send_message(chat_id=m.chat.id, text=text, parse_mode='markdown')
             except ValueError:
                 bot.send_message(m.chat.id, 'Попробуйте ещё раз...\nФормат *dd/mm/yy-dd/mm/yy*', parse_mode='markdown')
     except Exception as e:
+        traceback_error_string = traceback.format_exc()
+        logging.error(traceback_error_string)
         bot.send_message(m.chat.id, e)
 
 
+def telegram_polling():
+    try:
+        logging.info('Bot started...')
+        bot.polling(none_stop=True, timeout=60)
+    except Exception:
+        traceback_error_string = traceback.format_exc()
+        logging.error(traceback_error_string)
+        bot.stop_polling()
+        time.sleep(120)
+        telegram_polling()
+
+
 if __name__ == "__main__":
-    my_id = config.ID
     logging.info('Bot started...')
-    bot.polling()
+    telegram_polling()

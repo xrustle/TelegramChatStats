@@ -1,5 +1,5 @@
 start - select chat
 help - instruction
 interval - select date interval
-stats - word cloud
+wordcloud - word cloud
 emoji - most commonly used emoticons

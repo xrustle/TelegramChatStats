@@ -2,7 +2,7 @@ import os
 from PIL import Image
 import numpy as np
 from scipy.ndimage import gaussian_gradient_magnitude
-from wordcloud import WordCloud, ImageColorGenerator
+from wordcloud import WordCloud, ImageColorGenerator, STOPWORDS
 
 d = os.path.dirname(__file__)
 

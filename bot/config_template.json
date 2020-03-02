@@ -6,12 +6,11 @@
         "https": "socks5://login:pass@host:port"
     },
     "mtproto": ["host", 443, "secret"],
-    "mongo": {
-        "uri": {
-            "host": "localhost",
-            "port": 27017
-        },
-        "db": "db name"
+    "mysql": {
+        "host": "localhost",
+        "user": "login",
+        "password": "pass",
+        "database": "db name"
     },
     "api": {
         "api_id": 2222222,
