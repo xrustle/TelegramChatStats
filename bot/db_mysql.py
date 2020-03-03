@@ -229,7 +229,7 @@ class MySQL:
             sql += ' DESC'
         self.mycursor.execute(sql + ' LIMIT 1;', (chat_id,))
         timestamp = self.mycursor.fetchone()[0]
-        return timestamp.strftime('%Y')
+        return int(timestamp.strftime('%Y'))
 
 
 db = MySQL()
