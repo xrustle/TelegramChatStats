@@ -107,9 +107,11 @@ def select_interval(m: types.Message):
 
     try:
         markup = types.InlineKeyboardMarkup()
-        year = datetime.now().year
-        for i in range(year - 4, year + 1):
-            markup.row(types.InlineKeyboardButton(text=str(i) + ' год', callback_data='Switch_interval ' + str(i)))
+        start = db.year_stamp(selected_chat)
+        end = db.year_stamp(selected_chat, end=True)
+        if start != end:
+            for i in range(start, end + 1):
+                markup.row(types.InlineKeyboardButton(text=str(i) + ' год', callback_data='Switch_interval ' + str(i)))
         markup.row(types.InlineKeyboardButton(text='За все время', callback_data='Switch_interval all'))
         markup.row(types.InlineKeyboardButton(text='Задать вручную', callback_data='Switch_interval manual'))
         bot.send_message(m.chat.id, 'Выберите интервал:', reply_markup=markup)

@@ -223,6 +223,14 @@ class MySQL:
         emoticons = self.mycursor.fetchall()
         return emoticons
 
+    def year_stamp(self, chat_id, end=False):
+        sql = 'SELECT creation_date FROM messages WHERE chat_id = %s ORDER BY creation_date'
+        if end:
+            sql += ' DESC'
+        self.mycursor.execute(sql + ' LIMIT 1;', (chat_id,))
+        timestamp = self.mycursor.fetchone()[0]
+        return timestamp.strftime('%Y')
+
 
 db = MySQL()
 
@@ -231,4 +239,4 @@ if __name__ == '__main__':
     # print(f'Обработано сообщений {str(ret[0])}\n'
     #       f'Добавлено слов {str(ret[1])}\n'
     #       f'Добавлено эмодзи {str(ret[2])}')
-    print(db.get_full_user_list())
+    print(db.year_stamp(5))
