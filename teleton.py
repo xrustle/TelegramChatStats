@@ -29,7 +29,7 @@ def collect_messages():
                                                           member.first_name,
                                                           member.last_name,
                                                           member.username)
-                users[ID] = db.insert_user(chat_id, str(ID))
+                users[ID] = db.insert_user(chat_id, str(ID), 'Dmitry', 'Batorov')
 
                 number_of_new_messages = 0
                 async for m in client.iter_messages(dialog):

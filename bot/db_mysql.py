@@ -231,6 +231,21 @@ class MySQL:
         timestamp = self.mycursor.fetchone()[0]
         return int(timestamp.strftime('%Y'))
 
+    def word_stats(self, chat_id, word, start=None, end=None):
+        sql = "SELECT messages.user_id, users.user_id, name, first_name, last_name, username, COUNT(*)  FROM words " \
+              "JOIN messages ON messages.id = message_id JOIN users ON users.id = messages.user_id " \
+              "WHERE messages.chat_id = %s AND (word = %s or normal_form = %s)"
+        val = (chat_id, word, word)
+        if start:
+            sql += " AND creation_date >= %s"
+            val = val + (start,)
+        if end:
+            sql += " AND creation_date <= %s"
+            val = val + (end,)
+        self.mycursor.execute(sql + ' GROUP BY messages.user_id ORDER BY COUNT(*) DESC;', val)
+        users = self.mycursor.fetchall()
+        return users
+
 
 db = MySQL()
 
@@ -239,4 +254,4 @@ if __name__ == '__main__':
     # print(f'Обработано сообщений {str(ret[0])}\n'
     #       f'Добавлено слов {str(ret[1])}\n'
     #       f'Добавлено эмодзи {str(ret[2])}')
-    print(db.year_stamp(5))
+    print(db.word_stats(5, 'любить'))

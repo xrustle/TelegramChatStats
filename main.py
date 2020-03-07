@@ -30,6 +30,7 @@ users = {}
 starts = {}
 ends = {}
 manuals = {}
+word_stats = {}
 
 
 def log_user_activity(action, msg: types.Message):
@@ -137,6 +138,7 @@ def stats_command(m: types.Message):
         markup = types.InlineKeyboardMarkup()
         markup.row(types.InlineKeyboardButton(text='Облако слов', callback_data='Stats wcloud'))
         markup.row(types.InlineKeyboardButton(text='Самые частые эмодзи', callback_data='Stats emoji'))
+        markup.row(types.InlineKeyboardButton(text='Статистика по слову', callback_data='Stats word'))
         bot.send_message(m.chat.id, 'На сегодня могу предложить следующее:', reply_markup=markup)
     except Exception as e:
         traceback_error_string = traceback.format_exc()
@@ -306,6 +308,11 @@ def chat_select_callback(query: types.CallbackQuery):
                 wcloud(m, selected_chat)
             elif stats_type == 'emoji':
                 emoji(m, selected_chat)
+            elif stats_type == 'word':
+                word_stats[m.chat.id] = 1
+                bot.edit_message_text(chat_id=m.chat.id,
+                                      message_id=m.message_id,
+                                      text='Введите русское слово')
 
     except Exception as e:
         traceback_error_string = traceback.format_exc()
@@ -330,6 +337,58 @@ def set_manual_interval(m: types.Message):
                 bot.send_message(chat_id=m.chat.id, text=text, parse_mode='markdown')
             except ValueError:
                 bot.send_message(m.chat.id, 'Попробуйте ещё раз...\nФормат *dd/mm/yy-dd/mm/yy*', parse_mode='markdown')
+    except Exception as e:
+        traceback_error_string = traceback.format_exc()
+        logging.error(traceback_error_string)
+        bot.send_message(m.chat.id, e)
+
+
+@bot.message_handler(func=lambda m: m.chat.id in word_stats)
+def set_manual_interval(m: types.Message):
+    try:
+        log_user_activity('WORD_STATS', m)
+        if m.text:
+            word = m.text
+
+            start = None
+            end = None
+            if m.chat.id in starts:
+                start = starts[m.chat.id]
+            if m.chat.id in ends:
+                end = ends[m.chat.id]
+
+            selected_chat = get_selected_chat(m)
+            del word_stats[m.chat.id]
+            stats = db.word_stats(selected_chat, word, start, end)
+            if stats:
+                user_stats = {}
+                uname_len = 0
+                text = ''
+                for user in stats:
+                    user_name = str(user[0])
+                    if user[2]:
+                        user_name = user[2]
+                    elif not user[3] and not user[4] and not user[5] and user[1]:
+                        user_name = user[1]
+                    else:
+                        if user[3] and user[4]:
+                            user_name = user[3] + ' ' + user[4]
+                        elif user[3]:
+                            user_name = user[3]
+                        elif user[4]:
+                            user_name = user[4]
+                        elif user[5]:
+                            user_name = user[4]
+                    user_stats[user_name] = str(user[6])
+                    if len(user_name) > uname_len:
+                        uname_len = len(user_name)
+
+                for user in user_stats:
+                    text += f'`{user:<{uname_len}} {user_stats[user]}`\n'
+                bot.send_message(chat_id=m.chat.id, text=text, parse_mode='markdown')
+            else:
+                bot.send_message(chat_id=m.chat.id,
+                                 text='Такого слова не найдено в выбранном чате на выбранном интервале')
     except Exception as e:
         traceback_error_string = traceback.format_exc()
         logging.error(traceback_error_string)
